@@ -1,16 +1,16 @@
 /**
  * Copyright (c) 2000-present Liferay, Inc. All rights reserved.
- *
+ * <p>
  * This file is part of Liferay Social Office. Liferay Social Office is free
  * software: you can redistribute it and/or modify it under the terms of the GNU
  * Affero General Public License as published by the Free Software Foundation,
  * either version 3 of the License, or (at your option) any later version.
- *
+ * <p>
  * Liferay Social Office is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
  * for more details.
- *
+ * <p>
  * You should have received a copy of the GNU General Public License along with
  * Liferay Social Office. If not, see http://www.gnu.org/licenses/agpl-3.0.html.
  */
@@ -22,6 +22,7 @@ import com.liferay.portal.kernel.portlet.LiferayPortletResponse;
 import com.liferay.portal.model.User;
 import com.liferay.portal.security.permission.ActionKeys;
 import com.liferay.portal.security.permission.PermissionChecker;
+import com.liferay.portal.service.UserGroupLocalServiceUtil;
 import com.liferay.portal.theme.ThemeDisplay;
 import com.liferay.portal.util.PortalUtil;
 import com.liferay.portlet.PortletURLFactoryUtil;
@@ -31,115 +32,134 @@ import com.liferay.tasks.service.permission.TasksEntryPermission;
 import com.liferay.tasks.util.PortletKeys;
 import com.liferay.tasks.util.WebKeys;
 
-import java.util.Locale;
-
 import javax.portlet.PortletRequest;
 import javax.portlet.PortletURL;
 import javax.portlet.RenderRequest;
 import javax.portlet.RenderResponse;
+import java.util.Locale;
 
 /**
  * @author Matthew Kong
  */
 public class TasksEntryAssetRenderer extends BaseAssetRenderer {
 
-	public TasksEntryAssetRenderer(TasksEntry entry) {
-		_entry = entry;
-	}
+    public TasksEntryAssetRenderer(TasksEntry entry) {
+        _entry = entry;
+    }
 
-	@Override
-	public String getClassName() {
-		return TasksEntry.class.getName();
-	}
+    @Override
+    public String getClassName() {
+        return TasksEntry.class.getName();
+    }
 
-	@Override
-	public long getClassPK() {
-		return _entry.getTasksEntryId();
-	}
+    @Override
+    public long getClassPK() {
+        return _entry.getTasksEntryId();
+    }
 
-	@Override
-	public long getGroupId() {
-		return _entry.getGroupId();
-	}
+    @Override
+    public long getGroupId() {
+        return _entry.getGroupId();
+    }
 
-	@Override
-	public String getSummary(Locale locale) {
-		return _entry.getTitle();
-	}
+    @Override
+    public String getSummary(Locale locale) {
+        return _entry.getTitle();
+    }
 
-	@Override
-	public String getTitle(Locale locale) {
-		return _entry.getTitle();
-	}
+    @Override
+    public String getTitle(Locale locale) {
+        return _entry.getTitle();
+    }
 
-	@Override
-	public String getURLViewInContext(
-		LiferayPortletRequest liferayPortletRequest,
-		LiferayPortletResponse liferayPortletResponse,
-		String noSuchEntryRedirect) {
+    /**
+     * Task Portlet was originally built to live on the users private pages in
+     * order for the notification event URIs to redirect the user to the task
+     * portlet.
+     * The modification will ensure that if there is no task portlet on the
+     * users private pages the Asset renderer will look for a task portlet
+     * in the Staff User Group private pages instead.
+     */
+    @Override
+    public String getURLViewInContext(
+            LiferayPortletRequest liferayPortletRequest,
+            LiferayPortletResponse liferayPortletResponse,
+            String noSuchEntryRedirect) {
 
-		try {
-			ThemeDisplay themeDisplay =
-				(ThemeDisplay)liferayPortletRequest.getAttribute(
-					WebKeys.THEME_DISPLAY);
+        try {
+            ThemeDisplay themeDisplay =
+                    (ThemeDisplay) liferayPortletRequest.getAttribute(
+                            WebKeys.THEME_DISPLAY);
 
-			User user = themeDisplay.getUser();
+            User user = themeDisplay.getUser();
 
-			long portletPlid = PortalUtil.getPlidFromPortletId(
-				user.getGroupId(), true, PortletKeys.TASKS);
+            long portletPlid = PortalUtil.getPlidFromPortletId(
+                    user.getGroupId(), true, PortletKeys.TASKS);
 
-			PortletURL portletURL = PortletURLFactoryUtil.create(
-				liferayPortletRequest, PortletKeys.TASKS, portletPlid,
-				PortletRequest.RENDER_PHASE);
+			/*
+			The following if-statement will look for a task-portlet in the Staff
+			User Group private pages, provided there is no task-portlet on the
+			users private pages.
+			*/
+            if (portletPlid == 0) {
+                long staffUserGroupId = UserGroupLocalServiceUtil.getUserGroup(
+                        PortalUtil.getCompanyId(liferayPortletRequest),
+                        "Staff").getGroupId();
 
-			portletURL.setParameter("mvcPath", "/tasks/view.jsp");
+                portletPlid = PortalUtil.getPlidFromPortletId(
+                        staffUserGroupId, true, PortletKeys.TASKS);
+            }
 
-			return portletURL.toString();
-		}
-		catch (Exception e) {
-		}
+            PortletURL portletURL = PortletURLFactoryUtil.create(
+                    liferayPortletRequest, PortletKeys.TASKS, portletPlid,
+                    PortletRequest.RENDER_PHASE);
 
-		return null;
-	}
+            portletURL.setParameter("mvcPath", "/tasks/view.jsp");
 
-	@Override
-	public long getUserId() {
-		return _entry.getUserId();
-	}
+            return portletURL.toString();
+        } catch (Exception e) {
+        }
 
-	@Override
-	public String getUserName() {
-		return _entry.getUserName();
-	}
+        return null;
+    }
 
-	@Override
-	public String getUuid() {
-		return null;
-	}
+    @Override
+    public long getUserId() {
+        return _entry.getUserId();
+    }
 
-	@Override
-	public boolean hasViewPermission(PermissionChecker permissionChecker) {
-		return TasksEntryPermission.contains(
-			permissionChecker, _entry, ActionKeys.VIEW);
-	}
+    @Override
+    public String getUserName() {
+        return _entry.getUserName();
+    }
 
-	@Override
-	public String render(
-		RenderRequest renderRequest, RenderResponse renderResponse,
-		String template) {
+    @Override
+    public String getUuid() {
+        return null;
+    }
 
-		if (template.equals(TEMPLATE_ABSTRACT) ||
-			template.equals(TEMPLATE_FULL_CONTENT)) {
+    @Override
+    public boolean hasViewPermission(PermissionChecker permissionChecker) {
+        return TasksEntryPermission.contains(
+                permissionChecker, _entry, ActionKeys.VIEW);
+    }
 
-			renderRequest.setAttribute(WebKeys.TASKS_ENTRY, _entry);
+    @Override
+    public String render(
+            RenderRequest renderRequest, RenderResponse renderResponse,
+            String template) {
 
-			return "/tasks/asset/" + template + ".jsp";
-		}
-		else {
-			return null;
-		}
-	}
+        if (template.equals(TEMPLATE_ABSTRACT) ||
+                template.equals(TEMPLATE_FULL_CONTENT)) {
 
-	private TasksEntry _entry;
+            renderRequest.setAttribute(WebKeys.TASKS_ENTRY, _entry);
+
+            return "/tasks/asset/" + template + ".jsp";
+        } else {
+            return null;
+        }
+    }
+
+    private TasksEntry _entry;
 
 }
